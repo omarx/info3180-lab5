@@ -1,9 +1,11 @@
-from flask_wtf import FlaskForm
-from flask_wtf.file import FileField, FileAllowed
-from wtforms import StringField, SubmitField, TextAreaField, SelectField, IntegerField, DecimalField
-from wtforms.validators import InputRequired, NumberRange
+from . import db
+from datetime import datetime
 
-class MovieForm(FlaskForm):
-    title = StringField('Title', validators=[InputRequired()])
-    description = TextAreaField('Description', validators=[InputRequired()])
-    image = FileField('Poster', validators=[FileAllowed(['jpg', 'png'])])
+
+class Movies(db.Model):
+    __tablename__ = 'movie'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(80), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    description = db.Column(db.String(80), nullable=False)
+    poster = db.Column(db.String(80), nullable=False)

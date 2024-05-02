@@ -1,22 +1,61 @@
-"""
-Flask Documentation:     https://flask.palletsprojects.com/
-Jinja2 Documentation:    https://jinja.palletsprojects.com/
-Werkzeug Documentation:  https://werkzeug.palletsprojects.com/
-This file creates your application.
-"""
-
 from app import app
-from flask import render_template, request, jsonify, send_file
+from flask import render_template, request, jsonify, send_file, current_app, send_from_directory
 import os
+from werkzeug.utils import secure_filename
+from .forms import MovieForm
+from .models import Movies, db
+from flask_wtf import CSRFProtect
+
+csrf = CSRFProtect(app)
 
 
 ###
 # Routing for your application.
 ###
 
+@app.route('/get-csrf-token', methods=['GET'])
+def get_csrf_token():
+    from flask_wtf.csrf import generate_csrf
+    return jsonify({'csrf_token': generate_csrf()})
+
 @app.route('/')
 def index():
     return jsonify(message="This is the beginning of our API")
+
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@csrf.exempt
+@app.route('/api/v1/movies', methods=['POST'])
+def movies():
+    form = MovieForm()
+
+    if form.validate_on_submit():
+        filename = None
+        if form.poster.data:
+            filename = secure_filename(form.poster.data.filename)
+            form.poster.data.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+        movie = Movies(
+            title=form.title.data,
+            description=form.description.data,
+            poster=filename
+        )
+        db.session.add(movie)
+        db.session.commit()
+        return jsonify({
+            "message": "Movie Successfully added",
+            "title": movie.title,
+            "poster": movie.poster,
+            "description": movie.description
+        })
+
+    else:
+        errors = form_errors(form)
+        return jsonify({"errors": errors}), 400
 
 
 ###
@@ -31,12 +70,13 @@ def form_errors(form):
     for field, errors in form.errors.items():
         for error in errors:
             message = u"Error in the %s field - %s" % (
-                    getattr(form, field).label.text,
-                    error
-                )
+                getattr(form, field).label.text,
+                error
+            )
             error_messages.append(message)
 
     return error_messages
+
 
 @app.route('/<file_name>.txt')
 def send_text_file(file_name):
