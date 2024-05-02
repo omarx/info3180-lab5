@@ -9,54 +9,60 @@ from flask_wtf import CSRFProtect
 csrf = CSRFProtect(app)
 
 
-###
-# Routing for your application.
-###
-
-@app.route('/get-csrf-token', methods=['GET'])
+@app.route('/api/v1/csrf-token/', methods=['GET'])
 def get_csrf_token():
     from flask_wtf.csrf import generate_csrf
     return jsonify({'csrf_token': generate_csrf()})
+
 
 @app.route('/')
 def index():
     return jsonify(message="This is the beginning of our API")
 
 
-@app.route('/uploads/<filename>')
+@app.route('/api/v1/posters/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
-@csrf.exempt
-@app.route('/api/v1/movies', methods=['POST'])
+@app.route('/api/v1/movies', methods=['POST', 'GET'])
 def movies():
-    form = MovieForm()
+    if request.method == 'POST':
+        form = MovieForm()
 
-    if form.validate_on_submit():
-        filename = None
-        if form.poster.data:
-            filename = secure_filename(form.poster.data.filename)
-            form.poster.data.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        if form.validate_on_submit():
+            filename = None
+            if form.poster.data:
+                filename = secure_filename(form.poster.data.filename)
+                form.poster.data.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-        movie = Movies(
-            title=form.title.data,
-            description=form.description.data,
-            poster=filename
-        )
-        db.session.add(movie)
-        db.session.commit()
-        return jsonify({
-            "message": "Movie Successfully added",
+            movie = Movies(
+                title=form.title.data,
+                description=form.description.data,
+                poster=filename
+            )
+            db.session.add(movie)
+            db.session.commit()
+            return jsonify({
+                "message": "Movie Successfully added",
+                "title": movie.title,
+                "poster": movie.poster,
+                "description": movie.description
+            }), 201
+
+        else:
+            errors = form_errors(form)
+            return jsonify({"errors": errors}), 400
+
+    elif request.method == 'GET':
+        movie = Movies.query.all()
+        movies_list = [{
             "title": movie.title,
+            "description": movie.description,
             "poster": movie.poster,
-            "description": movie.description
-        })
-
-    else:
-        errors = form_errors(form)
-        return jsonify({"errors": errors}), 400
-
+            "id": movie.id
+        } for movie in movie]
+        return jsonify(movies_list)
 
 ###
 # The functions below should be applicable to all Flask apps.
